@@ -197,6 +197,8 @@ class Trainer:
             self.start_epoch, self.epochs = 0, 1
 
         global_steps = 0
+        print("Training in DDPM script")
+        print(f"Start epochs{self.start_epoch} End epoch: {self.epochs}")
         for e in range(self.start_epoch, self.epochs):
             self.stats.reset()
             self.model.train()
@@ -214,24 +216,23 @@ class Trainer:
                     if self.dry_run and not global_steps % self.num_accum:
                         break
 
-            if not (e + 1) % self.image_intv and self.num_samples and image_dir:
-                self.model.eval()
-                x = self.sample_fn(sample_size=self.num_samples, sample_seed=self.sample_seed).cpu()
-                if self.is_leader:
-                    save_image(x, os.path.join(image_dir, f"{e + 1}.jpg"), nrow=nrow)
-
-            if not (e + 1) % self.chkpt_intv and chkpt_path:
-                self.model.eval()
-                if evaluator is not None:
-                    eval_results = evaluator.eval(self.sample_fn, is_leader=self.is_leader)
-                else:
-                    eval_results = dict()
-                results.update(eval_results)
-                if self.is_leader:
-                    self.save_checkpoint(chkpt_path, epoch=e + 1, **results)
-
-            if self.distributed:
-                dist.barrier()  # synchronize all processes here
+            # if not (e + 1) % self.image_intv and self.num_samples and image_dir:
+            #     self.model.eval()
+            #     x = self.sample_fn(sample_size=self.num_samples, sample_seed=self.sample_seed).cpu()
+            #     if self.is_leader:
+            #         save_image(x, os.path.join(image_dir, f"{e + 1}.jpg"), nrow=nrow)
+            # import ipdb; ipdb.set_trace()
+            # if not (e + 1) % self.chkpt_intv and chkpt_path:
+            self.model.eval()
+            if evaluator is not None:
+                eval_results = evaluator.eval(self.sample_fn, is_leader=self.is_leader)
+            else:
+                eval_results = dict()
+            results.update(eval_results)
+        # if self.is_leader:
+        self.model.eval()
+        print(f"Saving checkpoint in {chkpt_path} in DDPM script")
+        self.save_checkpoint(chkpt_path, epoch=self.epochs, **results)
 
     @property
     def trainees(self):
