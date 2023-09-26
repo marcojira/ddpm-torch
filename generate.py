@@ -43,7 +43,9 @@ def generate(rank, args, counter=0):
     beta_start = diffusion_kwargs.pop("beta_start")
     beta_end = diffusion_kwargs.pop("beta_end")
     num_diffusion_timesteps = diffusion_kwargs.pop("timesteps")
-    betas = get_beta_schedule(beta_schedule, beta_start, beta_end, num_diffusion_timesteps)
+    betas = get_beta_schedule(
+        beta_schedule, beta_start, beta_end, num_diffusion_timesteps
+    )
 
     use_ddim = args.use_ddim
     if use_ddim:
@@ -51,7 +53,9 @@ def generate(rank, args, counter=0):
         skip_schedule = args.skip_schedule
         eta = args.eta
         subseq_size = args.subseq_size
-        subsequence = get_selection_schedule(skip_schedule, size=subseq_size, timesteps=num_diffusion_timesteps)
+        subsequence = get_selection_schedule(
+            skip_schedule, size=subseq_size, timesteps=num_diffusion_timesteps
+        )
         diffusion = DDIM(betas, **diffusion_kwargs, eta=eta, subsequence=subsequence)
     else:
         diffusion = GaussianDiffusion(betas, **diffusion_kwargs)
@@ -82,18 +86,19 @@ def generate(rank, args, counter=0):
         if p.requires_grad:
             p.requires_grad_(False)
 
-    folder_name = folder_name + args.suffix
-    save_dir = os.path.join(args.save_dir, "eval", exp_name, folder_name)
-    if is_leader and not os.path.exists(save_dir):
-        os.makedirs(save_dir)
+    # folder_name = folder_name + args.suffix
+    # save_dir = os.path.join(args.save_dir, "eval", exp_name, folder_name)
+    # if is_leader and not os.path.exists(save_dir):
+    #     os.makedirs(save_dir)
 
+    save_dir = args.save_dir
     local_total_size = args.local_total_size
     batch_size = args.batch_size
     if args.world_size > 1:
         if rank < args.total_size % args.world_size:
             local_total_size += 1
     local_num_batches = math.ceil(local_total_size / batch_size)
-    shape = (batch_size, ) + input_shape
+    shape = (batch_size,) + input_shape
 
     def save_image(arr):
         with Image.fromarray(arr, mode="RGB") as im:
@@ -110,8 +115,20 @@ def generate(rank, args, counter=0):
         for i in range(local_num_batches):
             if i == local_num_batches - 1:
                 shape = (local_total_size - i * batch_size, 3, image_res, image_res)
-            x = diffusion.p_sample(model, shape=shape, device=device, noise=torch.randn(shape, device=device)).cpu()
-            x = (x * 127.5 + 127.5).round().clamp(0, 255).to(torch.uint8).permute(0, 2, 3, 1).numpy()
+            x = diffusion.p_sample(
+                model,
+                shape=shape,
+                device=device,
+                noise=torch.randn(shape, device=device),
+            ).cpu()
+            x = (
+                (x * 127.5 + 127.5)
+                .round()
+                .clamp(0, 255)
+                .to(torch.uint8)
+                .permute(0, 2, 3, 1)
+                .numpy()
+            )
             pool.map(save_image, list(x))
             if isinstance(counter, Synchronized):
                 with counter.get_lock():
@@ -122,7 +139,9 @@ def generate(rank, args, counter=0):
 
 def main():
     parser = ArgumentParser()
-    parser.add_argument("--config-path", type=str, help="path to the configuration file")
+    parser.add_argument(
+        "--config-path", type=str, help="path to the configuration file"
+    )
     parser.add_argument("--dataset", choices=DATASET_DICT.keys(), default="cifar10")
     parser.add_argument("--batch-size", default=128, type=int)
     parser.add_argument("--total-size", default=50000, type=int)
@@ -133,7 +152,7 @@ def main():
     parser.add_argument("--device", default="cuda:0", type=str)
     parser.add_argument("--use-ema", action="store_true")
     parser.add_argument("--use-ddim", action="store_true")
-    parser.add_argument("--eta", default=0., type=float)
+    parser.add_argument("--eta", default=0.0, type=float)
     parser.add_argument("--skip-schedule", default="linear", type=str)
     parser.add_argument("--subseq-size", default=50, type=int)
     parser.add_argument("--suffix", default="", type=str)
@@ -153,7 +172,9 @@ def main():
     if world_size > 1:
         mp.set_start_method("spawn")
         counter = mp.Value("i", 0)
-        mp.Process(target=progress_monitor, args=(num_batches, counter), daemon=True).start()
+        mp.Process(
+            target=progress_monitor, args=(num_batches, counter), daemon=True
+        ).start()
         mp.spawn(generate, args=(args, counter), nprocs=world_size)
     else:
         generate(0, args)
